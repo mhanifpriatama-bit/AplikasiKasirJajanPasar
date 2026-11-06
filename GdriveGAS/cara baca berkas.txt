@@ -1,0 +1,107 @@
+Bangun modul klien untuk membaca daftar file dari Google Apps Script Web App
+dan mengunduh isi file JSON-nya. Fokus hanya pada: cara membaca daftar, cara
+mengunduh, dan cara menentukan hasil (berhasil/gagal). Jangan bahas UI,
+jadwal, WorkManager, atau arsitektur aplikasi.
+
+============================================================
+1. ENDPOINT DASAR
+============================================================
+{ENDPOINT}
+
+Ketentuan transport (berlaku untuk semua request):
+- Ikuti redirect (GAS mengembalikan 302).
+- Timeout 60 detik.
+- Token dikirim lewat query string, bukan header.
+- Server SELALU membalas HTTP 200 untuk request yang valid. Jangan memakai
+  status code HTTP untuk menentukan hasil. Selalu parse body JSON.
+
+============================================================
+2. BACA DAFTAR FILE (GET)
+============================================================
+Method : GET
+URL    : {ENDPOINT}?token=<SECRET_TOKEN>
+         atau
+         {ENDPOINT}?token=<SECRET_TOKEN>&toko=<nama toko>
+
+Tanpa "toko" -> mengembalikan daftar folder toko di root + file di root.
+Dengan "toko" -> mengembalikan daftar file di folder toko tersebut.
+
+Response sukses:
+{
+  "ok": true,
+  "versi": 1,
+  "folder": "(root)" | "TokoA",
+  "folders": [
+    { "name": "TokoA", "id": "..." },
+    { "name": "TokoB", "id": "..." }
+  ],
+  "files": [
+    {
+      "name": "2026-11-05_143022.json",
+      "id": "1AbCd...",
+      "size": 12345,
+      "updated": "2026-11-05T07:30:22.000Z",
+      "url": "https://drive.google.com/file/d/..."
+    }
+  ]
+}
+
+Catatan:
+- "folders" hanya berisi data saat request TANPA parameter "toko".
+  Saat request DENGAN "toko", "folders" adalah array kosong.
+- "files" selalu ada, bisa array kosong.
+- "id" pada file dipakai untuk mengunduh isi file (lihat bagian 3).
+
+Response gagal:
+{ "ok": false, "error": "<pesan>" }
+Contoh: "Token tidak valid", "Folder toko tidak ditemukan: TokoX"
+
+============================================================
+3. UNDUH ISI FILE (GET)
+============================================================
+Method : GET
+URL    : {ENDPOINT}?token=<SECRET_TOKEN>&download=<fileId>
+
+Response sukses: isi file JSON mentah (bukan wrapper {"ok":...}).
+Response gagal: JSON { "ok": false, "error": "<pesan>" }
+Contoh error: "No item with the given ID could be found..."
+
+Cara membedakan sukses vs gagal:
+1. Jika HTTP request gagal (network/timeout/DNS) -> GAGAL, alasan "network".
+2. Baca body sebagai teks.
+3. Coba parse sebagai JSON.
+   - Jika hasil parse adalah objek dengan field "ok" == false ->
+     GAGAL, alasan = field "error".
+   - Selain itu -> SUKSES. Body adalah isi file (JSON data).
+     Kembalikan body mentah sebagai string, biarkan pemanggil yang
+     mem-parse sesuai kebutuhannya.
+
+PENTING: isi file yang diunduh bisa berupa JSON apa pun (objek, array,
+string). Jangan mengasumsikan bentuknya. Kembalikan sebagai string mentah.
+
+============================================================
+4. OUTPUT YANG DIMINTA
+============================================================
+1. Fungsi daftarFile(token, toko?) yang mengembalikan:
+   {
+     status: "OK" | "GAGAL",
+     folder: string | null,
+     folders: [{name, id}] | [],
+     files: [{name, id, size, updated, url}] | [],
+     alasan: string | null
+   }
+
+2. Fungsi unduhFile(token, fileId) yang mengembalikan:
+   {
+     status: "OK" | "GAGAL",
+     isi: string | null,      // body mentah saat OK
+     alasan: string | null    // terisi saat GAGAL
+   }
+
+3. Implementasi penanganan redirect, timeout, parsing JSON, dan
+   pemetaan hasil sesuai aturan di atas.
+
+4. Contoh pemanggilan singkat untuk kedua fungsi.
+
+Jangan mengubah kontrak API. Jangan menambah parameter baru.
+Jika ada yang ambigu, tanyakan dulu.

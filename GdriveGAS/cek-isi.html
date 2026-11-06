@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Isi Google Drive - Kasir</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    max-width: 900px; margin: 40px auto; padding: 0 20px; color: #202124;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.sub { color: #5f6368; font-size: 13px; margin-top: 0; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 6px; }
+  input[type="text"] {
+    width: 100%; padding: 10px 12px; border: 1px solid #dadce0;
+    border-radius: 8px; font-size: 14px;
+  }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row > div { flex: 1; }
+  button {
+    padding: 10px 16px; border: none; border-radius: 8px;
+    background: #1a73e8; color: #fff; font-size: 14px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  button:disabled { background: #9aa0a6; cursor: not-allowed; }
+  button.ghost {
+    background: #fff; color: #1a73e8; border: 1px solid #dadce0;
+  }
+  #status {
+    margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px;
+    white-space: pre-wrap; word-break: break-word; display: none;
+  }
+  #status.ok   { background: #e6f4ea; color: #137333; display: block; }
+  #status.err  { background: #fce8e6; color: #c5221f; display: block; }
+  #status.info { background: #e8f0fe; color: #1a73e8; display: block; }
+
+  .crumb { margin-top: 20px; font-size: 13px; color: #5f6368; }
+  .crumb a { color: #1a73e8; text-decoration: none; }
+  .crumb a:hover { text-decoration: underline; }
+  .crumb b { color: #202124; }
+
+  ul.folders { list-style: none; padding: 0; margin: 12px 0 0; }
+  ul.folders li {
+    padding: 10px 12px; border: 1px solid #dadce0; border-radius: 8px;
+    margin-bottom: 8px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center;
+    transition: background .15s;
+  }
+  ul.folders li:hover { background: #f8f9fa; }
+  ul.folders li .arrow { color: #1a73e8; font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #e8eaed; vertical-align: top; }
+  th { color: #5f6368; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  td.nama { font-weight: 600; word-break: break-all; }
+  td a, td button.link {
+    color: #1a73e8; text-decoration: none; margin-right: 10px;
+    background: none; border: none; padding: 0; font-size: 13px;
+    cursor: pointer; font-weight: 600;
+  }
+  td a:hover, td button.link:hover { text-decoration: underline; }
+  .empty { color: #5f6368; font-size: 13px; margin-top: 12px; }
+
+  /* Viewer JSON */
+  #viewer {
+    display: none; margin-top: 24px; border: 1px solid #dadce0;
+    border-radius: 8px; overflow: hidden;
+  }
+  #viewer.aktif { display: block; }
+  #viewer .head {
+    padding: 10px 14px; background: #f8f9fa; border-bottom: 1px solid #dadce0;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; font-weight: 600;
+  }
+  #viewer .head .close {
+    background: none; border: none; color: #5f6368; font-size: 20px;
+    cursor: pointer; padding: 0 4px; line-height: 1;
+  }
+  #viewer pre {
+    margin: 0; padding: 14px; font-size: 12px; font-family: ui-monospace, monospace;
+    background: #fff; max-height: 480px; overflow: auto; white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid #dadce0; border-top-color: #1a73e8;
+    border-radius: 50%; animation: spin .6s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<h1>Isi Google Drive</h1>
+<p class="sub">Lihat folder toko, daftar file JSON, dan isi file — tanpa download.</p>
+
+<label for="token">Token Rahasia</label>
+<input type="text" id="token" placeholder="Tempel SECRET_TOKEN di sini" autocomplete="off">
+
+<div class="row" style="margin-top:16px">
+  <div>
+    <label for="toko" style="margin-top:0">Nama Toko (opsional)</label>
+    <input type="text" id="toko" placeholder="Kosongkan untuk lihat semua toko" autocomplete="off">
+  </div>
+  <button id="btn" onclick="muat()">Muat</button>
+  <button class="ghost" onclick="reset()">Reset</button>
+</div>
+
+<div class="crumb" id="crumb"></div>
+<div id="status"></div>
+
+<ul class="folders" id="folders"></ul>
+<div id="filesWrap"></div>
+
+<div id="viewer">
+  <div class="head">
+    <span id="viewerTitle">Isi File</span>
+    <button class="close" onclick="tutupViewer()" title="Tutup">✕</button>
+  </div>
+  <pre id="viewerBody"></pre>
+</div>
+
+<script>
+// ============================================================
+// ENDPOINT sudah diisi dengan URL Web App Anda
+// ============================================================
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzT79xsOE50gKwCfr2H7ngsqFfznhkPHYFFP5btsl5aIStcZsYZ6NBkUeDjsLzth1X42g/exec';
+
+const $ = id => document.getElementById(id);
+let tokoAktif = '';
+let tokenAktif = '';
+
+function setStatus(msg, cls) {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+function formatSize(bytes) {
+  if (bytes == null) return '-';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function formatTanggal(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleString('id-ID', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+function reset() {
+  $('toko').value = '';
+  $('folders').innerHTML = '';
+  $('filesWrap').innerHTML = '';
+  $('crumb').innerHTML = '';
+  setStatus('', '');
+  tutupViewer();
+  tokoAktif = '';
+}
+
+async function muat(toko) {
+  const token = $('token').value.trim();
+  if (!token) return setStatus('Token wajib diisi.', 'err');
+
+  tokenAktif = token;
+  if (typeof toko === 'string') tokoAktif = toko;
+  else tokoAktif = $('toko').value.trim();
+
+  const btn = $('btn');
+  btn.disabled = true;
+  setStatus('<span class="spinner"></span>Memuat data...', 'info');
+  $('folders').innerHTML = '';
+  $('filesWrap').innerHTML = '';
+  $('crumb').innerHTML = '';
+  tutupViewer();
+
+  try {
+    let url = ENDPOINT + '?token=' + encodeURIComponent(token);
+    if (tokoAktif) url += '&toko=' + encodeURIComponent(tokoAktif);
+
+    const res = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+
+    let hasil;
+    try { hasil = JSON.parse(text); }
+    catch { throw new Error('Respons bukan JSON:\n' + text.slice(0, 300)); }
+
+    if (!hasil.ok) {
+      setStatus('❌ ' + (hasil.error || 'Gagal memuat'), 'err');
+      return;
+    }
+
+    setStatus('', '');
+
+    // Breadcrumb
+    if (tokoAktif) {
+      $('crumb').innerHTML =
+        '<a href="#" onclick="muat(\'\');return false;">📁 Semua Toko</a> › <b>' +
+        escapeHtml(hasil.folder) + '</b>';
+    } else {
+      $('crumb').innerHTML = '<b>📁 Semua Toko</b>';
+    }
+
+    // Folder toko
+    if (hasil.folders && hasil.folders.length) {
+      const ul = $('folders');
+      hasil.folders.forEach(f => {
+        const li = document.createElement('li');
+        li.innerHTML = '<span>📁 ' + escapeHtml(f.name) + '</span><span class="arrow">›</span>';
+        li.onclick = () => muat(f.name);
+        ul.appendChild(li);
+      });
+    }
+
+    // File
+    if (!hasil.files || hasil.files.length === 0) {
+      $('filesWrap').innerHTML = '<div class="empty">Belum ada file di folder ini.</div>';
+      return;
+    }
+
+    const rows = hasil.files.map((f, i) => `
+      <tr>
+        <td class="nama">${escapeHtml(f.name)}</td>
+        <td>${formatSize(f.size)}</td>
+        <td>${formatTanggal(f.updated)}</td>
+        <td>
+          <button class="link" onclick="lihatIsi('${escapeHtml(f.id)}','${escapeHtml(f.name)}')">Lihat</button>
+          <a href="${ENDPOINT}?token=${encodeURIComponent(token)}&download=${encodeURIComponent(f.id)}" target="_blank" rel="noopener">Unduh</a>
+          <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener">Drive</a>
+        </td>
+      </tr>
+    `).join('');
+
+    $('filesWrap').innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Nama File</th><th>Ukuran</th><th>Diperbarui</th><th>Aksi</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+  } catch (err) {
+    setStatus('❌ Error: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function lihatIsi(fileId, namaFile) {
+  $('viewerTitle').textContent = '📄 ' + namaFile;
+  $('viewerBody').innerHTML = '<span class="spinner"></span>Memuat isi file...';
+  $('viewer').classList.add('aktif');
+  $('viewer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    const url = ENDPOINT + '?token=' + encodeURIComponent(tokenAktif) +
+                '&download=' + encodeURIComponent(fileId);
+    const res = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+
+    // Coba parse JSON biar rapi; kalau gagal, tampilkan raw
+    try {
+      const obj = JSON.parse(text);
+      $('viewerBody').textContent = JSON.stringify(obj, null, 2);
+    } catch {
+      $('viewerBody').textContent = text;
+    }
+  } catch (err) {
+    $('viewerBody').textContent = '❌ Error: ' + err.message;
+  }
+}
+
+function tutupViewer() {
+  $('viewer').classList.remove('aktif');
+  $('viewerBody').textContent = '';
+  $('viewerTitle').textContent = 'Isi File';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+Bangun modul pengiriman data (uploader) untuk aplikasi klien yang mengirim
+JSON ke Google Apps Script Web App. Fokus hanya pada: cara mengirim, dan
+cara menentukan data sudah tersimpan atau belum. Jangan bahas UI, jadwal,
+WorkManager, atau arsitektur aplikasi.
+
+============================================================
+ENDPOINT & CARA KIRIM
+============================================================
+Method : POST
+URL    : {ENDPOINT}
+Header : Content-Type: text/plain;charset=utf-8   (JANGAN application/json)
+Body   : JSON string:
+{
+  "token"   : "<SECRET_TOKEN>",
+  "toko"    : "<nama toko>",
+  "tanggal" : "<YYYY-MM-DD>",
+  "data"    : { ...objek JSON... }
+}
+
+Ketentuan transport:
+- Ikuti redirect (GAS mengembalikan 302).
+- Timeout 60 detik.
+- Body maksimal 5 MB.
+- Server SELALU membalas HTTP 200, baik sukses maupun gagal. Jangan
+  memakai status code HTTP untuk menentukan hasil. Selalu parse body JSON.
+
+============================================================
+RESPONSE & CARA MENENTUKAN HASIL
+============================================================
+Response sukses:
+{
+  "ok": true,
+  "versi": 1,
+  "folder": "TokoA",
+  "file": "2026-11-05_143022.json",
+  "fileId": "1AbCd...",
+  "url": "https://drive.google.com/file/d/..."
+}
+
+Response gagal:
+{ "ok": false, "error": "<pesan>" }
+
+Aturan penentuan hasil:
+1. Jika HTTP request gagal (network error, timeout, DNS) ->
+   status = BELUM_TERSIMPAN, alasan = "network".
+2. Jika response body bukan JSON valid ->
+   status = BELUM_TERSIMPAN, alasan = "respons tidak valid".
+3. Jika JSON valid dan field "ok" == true ->
+   status = TERSIMPAN. Simpan "fileId" dan "url" untuk referensi.
+4. Jika JSON valid dan field "ok" == false ->
+   status = BELUM_TERSIMPAN, alasan = nilai field "error".
+
+Jangan menganggap HTTP 200 berarti tersimpan. Hanya "ok": true yang
+berarti tersimpan.
+
+============================================================
+OUTPUT YANG DIMINTA
+============================================================
+1. Satu fungsi kirim(toko, tanggal, data) yang mengembalikan hasil
+   terstruktur, misal:
+   { status: "TERSIMPAN" | "BELUM_TERSIMPAN",
+     fileId: string | null,
+     url: string | null,
+     alasan: string | null }
+2. Implementasi penanganan redirect, timeout, dan parsing JSON sesuai
+   aturan di atas.
+3. Pemetaan setiap kemungkinan hasil ke salah satu dari dua status
+   (TERSIMPAN / BELUM_TERSIMPAN).
+4. Contoh pemanggilan singkat.
+
+Jangan mengubah kontrak API. Jangan menambah field ke body.
+Jika ada yang ambigu, tanyakan dulu.

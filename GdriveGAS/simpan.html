@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upload JSON ke Google Drive</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    max-width: 520px; margin: 40px auto; padding: 0 20px; color: #202124;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  p.sub { color: #5f6368; font-size: 13px; margin-top: 0; line-height: 1.5; }
+  code { background: #f1f3f4; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 6px; }
+  input[type="text"], input[type="password"], input[type="file"] {
+    width: 100%; padding: 10px 12px; border: 1px solid #dadce0;
+    border-radius: 8px; font-size: 14px; background: #fff;
+  }
+  input[type="file"] { padding: 8px; }
+  button {
+    margin-top: 20px; width: 100%; padding: 12px; border: none;
+    border-radius: 8px; background: #1a73e8; color: #fff;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { background: #9aa0a6; cursor: not-allowed; }
+  #status {
+    margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px;
+    white-space: pre-wrap; word-break: break-word; display: none;
+  }
+  #status.ok   { background: #e6f4ea; color: #137333; display: block; }
+  #status.err  { background: #fce8e6; color: #c5221f; display: block; }
+  #status.info { background: #e8f0fe; color: #1a73e8; display: block; }
+  small.hint { display: block; color: #5f6368; font-size: 12px; margin-top: 4px; }
+  .row { display: flex; gap: 8px; }
+  .row > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<h1>Upload JSON ke Google Drive</h1>
+<p class="sub">
+  File akan disimpan di folder toko masing-masing.<br>
+  Struktur: <code>FOLDER_ID/{toko}/{tanggal}_{jam}.json</code>
+</p>
+
+<label for="token">Token Rahasia</label>
+<input type="text" id="token" placeholder="Tempel SECRET_TOKEN di sini" autocomplete="off">
+
+<div class="row">
+  <div>
+    <label for="toko">Nama Toko</label>
+    <input type="text" id="toko" placeholder="Contoh: TokoA" autocomplete="off">
+  </div>
+  <div>
+    <label for="tanggal">Tanggal (YYYY-MM-DD)</label>
+    <input type="text" id="tanggal" placeholder="2026-11-05" autocomplete="off">
+  </div>
+</div>
+<small class="hint">Tanggal dikosongkan → pakai tanggal hari ini. Folder toko dibuat otomatis.</small>
+
+<label for="file">File JSON</label>
+<input type="file" id="file" accept=".json,application/json">
+
+<label for="manual">ATAU Tempel JSON Manual (opsional)</label>
+<textarea id="manual" rows="4" placeholder='{"transaksi":[{"id":"u1","total":50000}]}'
+  style="width:100%;padding:10px 12px;border:1px solid #dadce0;border-radius:8px;font-size:13px;font-family:monospace;"></textarea>
+<small class="hint">Kalau file dipilih, isian manual diabaikan.</small>
+
+<button id="btn" onclick="kirim()">Unggah</button>
+<div id="status"></div>
+
+<script>
+// ============================================================
+// ENDPOINT sudah diisi dengan URL Web App Anda
+// ============================================================
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzT79xsOE50gKwCfr2H7ngsqFfznhkPHYFFP5btsl5aIStcZsYZ6NBkUeDjsLzth1X42g/exec';
+
+const $ = id => document.getElementById(id);
+
+function setStatus(msg, cls) {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+function tanggalHariIni() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+async function kirim() {
+  const token   = $('token').value.trim();
+  const toko    = $('toko').value.trim();
+  let   tanggal = $('tanggal').value.trim();
+  const file    = $('file').files[0];
+  const manual  = $('manual').value.trim();
+
+  if (!tanggal) tanggal = tanggalHariIni();
+
+  // Validasi input
+  if (!token)   return setStatus('Token wajib diisi.', 'err');
+  if (!toko)    return setStatus('Nama toko wajib diisi.', 'err');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+    return setStatus('Format tanggal harus YYYY-MM-DD (contoh: 2026-11-05).', 'err');
+  }
+  if (!file && !manual) {
+    return setStatus('Pilih file JSON atau tempel JSON manual.', 'err');
+  }
+
+  const btn = $('btn');
+  btn.disabled = true;
+
+  try {
+    let teks;
+    if (file) {
+      setStatus('Membaca file...', 'info');
+      teks = await file.text();
+    } else {
+      teks = manual;
+    }
+
+    let data;
+    try { data = JSON.parse(teks); }
+    catch (e) { throw new Error('JSON tidak valid: ' + e.message); }
+
+    const body = { token, toko, tanggal, data };
+    setStatus('Mengirim ke Google Apps Script...', 'info');
+
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+      redirect: 'follow'
+    });
+
+    const text = await res.text();
+    let hasil;
+    try { hasil = JSON.parse(text); }
+    catch { throw new Error('Respons bukan JSON:\n' + text.slice(0, 300)); }
+
+    if (hasil.ok) {
+      setStatus(
+        '✅ Berhasil disimpan!\n' +
+        'Folder : ' + (hasil.folder || '-') + '\n' +
+        'File   : ' + hasil.file + '\n' +
+        'URL    : ' + (hasil.url || '-'),
+        'ok'
+      );
+    } else {
+      setStatus('❌ Gagal: ' + (hasil.error || 'Tidak diketahui'), 'err');
+    }
+
+  } catch (err) {
+    setStatus('❌ Error: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+
+</body>
+</html>
