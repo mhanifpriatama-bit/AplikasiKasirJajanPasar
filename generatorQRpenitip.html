@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Label QR Produk Penitip</title>
+    <!-- QRCode.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* === STYLES UNTUK APLIKASI / FORM (UI) === */
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        h2 { margin-top: 0; color: #0f172a; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #475569; }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-print { background: #059669; color: white; }
+        .btn-print:hover { background: #047857; }
+
+        .info-box {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1e40af;
+            margin-bottom: 16px;
+        }
+
+        .error-box {
+            display: none;
+            background-color: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #991b1b;
+            margin-top: 12px;
+        }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+        th { background: #f1f5f9; }
+        td.mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+
+        /* === STYLES KHUSUS CETAK / PDF === */
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .no-print { display: none !important; }
+            @page {
+                size: A4 portrait;
+                margin: 5mm 4mm 5mm 4mm;
+            }
+        }
+
+        /* Grid Layout 7x8 (Tepat 56 Kartu per Halaman A4) */
+        .page-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 2mm 1.5mm;
+            width: 202mm; /* Lebar A4 (210mm) - margin kiri/kanan (8mm) */
+            height: 286mm; /* Tinggi A4 (297mm) - margin atas/bawah (10mm) - 1mm kelonggaran agar tidak meluap ke halaman 2 */
+            box-sizing: border-box;
+            page-break-after: avoid;
+            page-break-inside: avoid;
+        }
+        @media screen { .page-grid { margin-top: 16px; } }
+
+        .card {
+            border: 0.5px solid #e2e8f0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5mm;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .prod-title {
+            width: 22mm;
+            font-size: 5.5pt;
+            font-weight: bold;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .qr-box {
+            width: 20mm;
+            height: 20mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .qr-box img, .qr-box canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .bottom-info {
+            width: 22mm;
+            border-top: 0.5px solid #cccccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 1px;
+        }
+
+        .producer {
+            max-width: 14mm;
+            font-size: 5.2pt;
+            font-weight: normal;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .price {
+            font-size: 5.2pt;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container no-print">
+    <h2>Input Data Produk Titipan</h2>
+    <div class="info-box">
+        ℹ️ <strong>Aturan Halaman:</strong> Setiap kali Anda mengisi data, sistem akan otomatis menduplikasi data tersebut menjadi <strong>tepat 56 QR Code</strong> (1 halaman A4 penuh). Data lama akan digantikan agar tidak membuat halaman kedua. Satu halaman untuk satu produk; untuk produk lain, isi ulang formulir lalu cetak lagi.
+    </div>
+
+    <!-- Form Input Produk -->
+    <div class="grid-2">
+        <div class="form-group">
+            <label for="namaProduk">Nama Produk:</label>
+            <input type="text" id="namaProduk" placeholder="Contoh: Apem Manis" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label for="penitip">Nama Penitip:</label>
+            <input type="text" id="penitip" placeholder="Contoh: Bu Joni" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label for="hargaJual">Harga Jual (Rp):</label>
+            <input type="number" id="hargaJual" placeholder="Contoh: 15000" min="1" step="1" inputmode="numeric">
+        </div>
+        <div class="form-group">
+            <label for="hargaTitip">Harga Titip (Rp):</label>
+            <input type="number" id="hargaTitip" placeholder="Contoh: 13400" min="1" step="1" inputmode="numeric">
+        </div>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+
+    <div class="btn-group">
+        <button class="btn-primary" onclick="setMasterProduk()">Terapkan ke 56 QR Code</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+    </div>
+    <p style="font-size:12px;color:#64748b;margin-bottom:0;">
+        Untuk menyimpan PDF: tekan tombol cetak, pilih tujuan <em>Simpan sebagai PDF</em>, ukuran kertas <strong>A4</strong>, skala <strong>100%</strong> (jangan "sesuaikan halaman").
+    </p>
+
+    <h3>Preview Data Label (56 Item)</h3>
+    <div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Total Slot</th>
+                <th>Nama Produk</th>
+                <th>Penitip</th>
+                <th>Harga Jual</th>
+                <th>Harga Titip</th>
+                <th>Kode Harga Titip</th>
+                <th>Isi QR</th>
+            </tr>
+        </thead>
+        <tbody id="tabelBody">
+            <tr>
+                <td colspan="7" style="text-align:center; color:#94a3b8;">Belum ada data. Silakan isi form di atas.</td>
+            </tr>
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<!-- Area khusus yang akan tercetak ke PDF -->
+<div id="print-area"></div>
+
+<script>
+    let currentProduk = null;
+
+    // === ALGORITMA KODE HARGA (sama persis dengan aplikasi kasir) ===
+    const ABJAD = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    // Huruf unik dari teks (kapital, urut kemunculan pertama, abaikan non-huruf)
+    function hurufUnik(teks) {
+        const hasil = [];
+        for (const ch of teks.toUpperCase()) {
+            if (ch >= 'A' && ch <= 'Z' && !hasil.includes(ch)) hasil.push(ch);
+        }
+        return hasil;
+    }
+
+    // Deret 11 huruf: abjad yang tidak ada di produk+penitip, ambil 11 pertama.
+    // Jika kurang dari 11, tambahkan huruf unik produk dari yang paling awal, lalu huruf unik penitip.
+    function buatDeret(produk, penitip) {
+        const terpakai = hurufUnik(produk + penitip);
+        const deret = ABJAD.split('').filter(c => !terpakai.includes(c)).slice(0, 11);
+        if (deret.length < 11) {
+            for (const c of [...hurufUnik(produk), ...hurufUnik(penitip)]) {
+                if (!deret.includes(c)) deret.push(c);
+                if (deret.length === 11) break;
+            }
+        }
+        return deret;
+    }
+
+    // 13400 -> "13,4"; 500 -> "0,5"; 15000 -> "15"
+    function formatRibuan(harga) {
+        const ribu = Math.floor(harga / 1000);
+        const sisa = String(harga % 1000).padStart(3, '0').replace(/0+$/, '');
+        return String(ribu) + (sisa ? ',' + sisa : '');
+    }
+
+    // Posisi (1..11) pada deret untuk satu karakter harga:
+    // ganjil 1,3,5,7,9 -> 1..5 ; genap 2,4,6,8 -> 6..9 ; 0 -> 10 ; koma -> 11
+    function posisiDeret(ch) {
+        if (ch === ',') return 11;
+        if (ch === '0') return 10;
+        const n = parseInt(ch, 10);
+        return (n % 2 === 1) ? (n + 1) / 2 : 5 + n / 2;
+    }
+
+    function kodeHarga(produk, penitip, harga) {
+        const deret = buatDeret(produk, penitip);
+        let kode = "";
+        for (const ch of formatRibuan(harga)) kode += deret[posisiDeret(ch) - 1];
+        return kode;
+    }
+
+    // === ISI QR: produk,penitip,harga jual,kode harga titip (CSV; tanda kutip bila ada koma) ===
+    function selCsv(s) {
+        return /[",]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function isiQr(p) {
+        return [selCsv(p.nama_produk), selCsv(p.penitip), String(p.harga_jual), p.kode_titip].join(',');
+    }
+
+    // === FORMAT HARGA SINGKAT UNTUK LABEL ===
+    function formatShortPrice(harga) {
+        const num = parseFloat(harga);
+        if (isNaN(num)) return harga;
+        if (num >= 1000) {
+            const shortVal = num / 1000;
+            return shortVal.toString().replace('.', ',') + 'k';
+        }
+        return num.toString();
+    }
+
+    function tampilkanError(pesan) {
+        const box = document.getElementById('errorBox');
+        box.textContent = pesan;
+        box.style.display = pesan ? 'block' : 'none';
+    }
+
+    // === LOGIKA UTAMA: DUPLIKASI KE TEPAT 56 SLOT ===
+    function setMasterProduk() {
+        const nama = document.getElementById('namaProduk').value.trim();
+        const pen = document.getElementById('penitip').value.trim();
+        const jual = Number(document.getElementById('hargaJual').value);
+        const titip = Number(document.getElementById('hargaTitip').value);
+
+        if (!nama || !pen || !document.getElementById('hargaJual').value || !document.getElementById('hargaTitip').value) {
+            tampilkanError("Harap isi semua input.");
+            return;
+        }
+        if (!Number.isInteger(jual) || !Number.isInteger(titip) || jual <= 0 || titip <= 0) {
+            tampilkanError("Harga harus berupa bilangan bulat rupiah lebih dari 0 (tanpa titik atau koma).");
+            return;
+        }
+        if (titip > jual) {
+            tampilkanError("Harga titip tidak boleh lebih besar dari harga jual.");
+            return;
+        }
+        if (/^\s*(PTG|TOKO|CMD|CASH|MBR)\s*:/i.test(nama)) {
+            tampilkanError("Nama produk tidak boleh diawali PTG:, TOKO:, CMD:, CASH:, atau MBR: (dipakai aplikasi kasir).");
+            return;
+        }
+        if (/[\r\n]/.test(nama + pen)) {
+            tampilkanError("Nama tidak boleh berisi baris baru.");
+            return;
+        }
+        tampilkanError("");
+
+        currentProduk = {
+            nama_produk: nama,
+            penitip: pen,
+            harga_jual: jual,
+            harga_titip: titip,
+            deret: buatDeret(nama, pen).join(''),
+            kode_titip: kodeHarga(nama, pen, titip)
+        };
+
+        renderTabel();
+        renderPrintGrid();
+    }
+
+    function renderTabel() {
+        const tbody = document.getElementById('tabelBody');
+        if (!currentProduk) return;
+        const p = currentProduk;
+
+        const tr = document.createElement('tr');
+        const sel = [
+            ['56 Kartu', true],
+            [p.nama_produk],
+            [p.penitip],
+            ['Rp ' + p.harga_jual.toLocaleString('id-ID')],
+            ['Rp ' + p.harga_titip.toLocaleString('id-ID')],
+            [p.kode_titip + '  (deret ' + p.deret + ')', true, 'mono'],
+            [isiQr(p), false, 'mono']
+        ];
+        for (const [teks, tebal, kelas] of sel) {
+            const td = document.createElement('td');
+            if (kelas) td.className = kelas;
+            if (tebal) {
+                const s = document.createElement('strong');
+                s.textContent = teks;
+                td.appendChild(s);
+            } else {
+                td.textContent = teks;
+            }
+            tr.appendChild(td);
+        }
+        tbody.innerHTML = '';
+        tbody.appendChild(tr);
+    }
+
+    // === RENDER LAYOUT CETAK 7x8 (Maksimal 56 Item / 1 Halaman) ===
+    function renderPrintGrid() {
+        const printArea = document.getElementById('print-area');
+        printArea.innerHTML = '';
+
+        if (!currentProduk) return;
+
+        const grid = document.createElement('div');
+        grid.className = 'page-grid';
+        const qrText = isiQr(currentProduk);
+
+        // Selalu buat TEPAT 56 kartu (1 Halaman A4)
+        for (let i = 0; i < 56; i++) {
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            // 1. Title
+            const titleEl = document.createElement('div');
+            titleEl.className = 'prod-title';
+            titleEl.textContent = currentProduk.nama_produk;
+
+            // 2. QR Box
+            const qrBox = document.createElement('div');
+            qrBox.className = 'qr-box';
+
+            new QRCode(qrBox, {
+                text: qrText,
+                width: 200,   // dirender besar, dikecilkan oleh CSS ke 20mm agar tajam saat dicetak
+                height: 200,
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            // 3. Bottom Info
+            const bottomInfo = document.createElement('div');
+            bottomInfo.className = 'bottom-info';
+
+            const producerEl = document.createElement('span');
+            producerEl.className = 'producer';
+            producerEl.textContent = currentProduk.penitip;
+
+            const priceEl = document.createElement('span');
+            priceEl.className = 'price';
+            priceEl.textContent = formatShortPrice(currentProduk.harga_jual);
+
+            bottomInfo.appendChild(producerEl);
+            bottomInfo.appendChild(priceEl);
+
+            // Assemble Card
+            card.appendChild(titleEl);
+            card.appendChild(qrBox);
+            card.appendChild(bottomInfo);
+
+            grid.appendChild(card);
+        }
+
+        printArea.appendChild(grid);
+    }
+</script>
+</body>
+</html>
